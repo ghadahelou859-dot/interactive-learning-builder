@@ -1,0 +1,37 @@
+/* Enhanced interactive button editor */
+(function(){
+  function actionName(a){return ({next:'التالي',prev:'السابق',page:'صفحة محددة',url:'رابط خارجي',whatsapp:'واتساب',video:'تشغيل فيديو',audio:'تشغيل/إيقاف صوت',map:'خريطة/موقع',home:'الصفحة الرئيسية'})[a]||'التالي'}
+  window.editHotspot=function(h,page,draw){
+    const type=prompt('نوع الزر:\n1 شفاف\n2 زر ملون\n3 صورة زر خارجي',''+({transparent:1,styled:2,image:3}[h.kind||'transparent']||1));
+    if(type==='1')h.kind='transparent'; if(type==='2')h.kind='styled'; if(type==='3')h.kind='image';
+    const label=prompt('نص الزر (اختياري ويمكن تركه فارغًا)',h.label||''); if(label!==null)h.label=label;
+    if(h.kind==='styled'){h.background=prompt('لون الزر HEX',h.background||'#22c55e')||'#22c55e';h.textColor=prompt('لون الكتابة HEX',h.textColor||'#ffffff')||'#ffffff';h.radius=Math.max(0,Math.min(100,Number(prompt('استدارة الحواف 0–100',h.radius??18))||0));}
+    if(h.kind==='image')h.imageUrl=prompt('رابط صورة الزر PNG',h.imageUrl||'')||'';
+    const actions=['next','prev','page','url','whatsapp','video','audio','map','home'];
+    const n=Number(prompt('وظيفة الزر:\n1 التالي\n2 السابق\n3 الانتقال إلى صفحة محددة\n4 فتح رابط خارجي\n5 فتح WhatsApp\n6 تشغيل فيديو\n7 تشغيل/إيقاف صوت\n8 فتح خريطة/موقع\n9 الصفحة الرئيسية',String(Math.max(1,actions.indexOf(h.action)+1))))-1;
+    if(actions[n])h.action=actions[n];
+    if(['page','url','video','audio','map'].includes(h.action))h.target=prompt('أدخلي الصفحة أو الرابط المطلوب',h.target||'')||'';
+    if(h.action==='whatsapp'){const phone=prompt('رقم WhatsApp مع رمز الدولة',h.target||'')||'';const msg=prompt('رسالة جاهزة (اختياري)',h.message||'')||'';h.target=phone;h.message=msg;}
+    if(confirm('هل تريدين حذف هذا الزر؟'))page.hotspots=page.hotspots.filter(x=>x.id!==h.id);
+    draw();
+  };
+  window.hotspotEditor=function(page){
+    const portrait=page.settings?.image_portrait,landscape=page.settings?.image_landscape;if(!portrait&&!landscape)return alert('ارفعي صورة أولًا');
+    page.hotspots=page.hotspots||[];let variant=landscape?'landscape':'portrait',show=true;
+    const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:9999;background:#f5f5f7;overflow:auto;padding:15px';
+    const top=document.createElement('div');top.style.cssText='display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:30;background:#f5f5f7;padding:8px';
+    const close=document.createElement('button'),toggle=document.createElement('button'),vis=document.createElement('button'),transparent=document.createElement('button'),styled=document.createElement('button'),imageBtn=document.createElement('button'),full=document.createElement('button'),save=document.createElement('button');
+    close.textContent='✕ إغلاق';vis.textContent='🙈 إخفاء الأزرار';transparent.textContent='+ زر شفاف';styled.textContent='+ زر ملون';imageBtn.textContent='+ زر بصورة PNG';full.textContent='☑️ كل الصفحة';save.textContent='💾 حفظ';save.style.cssText='background:#6d4aff;color:#fff';top.append(close,toggle,vis,transparent,styled,imageBtn,full,save);
+    const help=document.createElement('p');help.textContent='اسحبي الزر لتحريكه، واسحبي الدائرة أسفل الزر لتكبيره أو تصغيره. ضغطتين على الزر = تعديل الوظيفة أو الحذف.';help.style.cssText='max-width:1100px;margin:10px auto;background:white;padding:10px;border-radius:10px';
+    const stage=document.createElement('div');stage.style.cssText='position:relative;margin:auto;max-width:1100px;background:#fff;box-shadow:0 3px 18px #bbb;touch-action:none';const img=document.createElement('img');img.style.cssText='display:block;width:100%';stage.appendChild(img);
+    function draw(){img.src=(variant==='portrait'?(portrait||landscape):(landscape||portrait)).url;toggle.textContent=variant==='portrait'?'📱 الطولية':'💻 العرضية';vis.textContent=show?'🙈 إخفاء الأزرار':'👁 إظهار الأزرار';stage.querySelectorAll('.hs').forEach(e=>e.remove());if(!show)return;
+      page.hotspots.filter(h=>h.variant===variant).forEach(h=>{const el=document.createElement('div');el.className='hs';let visual='border:3px dashed #6d4aff;background:rgba(109,74,255,.15);color:#321e91;';if(h.kind==='styled')visual=`border:2px dashed #6d4aff;background:${h.background||'#22c55e'};color:${h.textColor||'#fff'};border-radius:${h.radius||0}px;`;if(h.kind==='image'&&h.imageUrl)visual=`border:2px dashed #6d4aff;background:transparent url('${h.imageUrl}') center/contain no-repeat;color:transparent;`;
+        el.style.cssText=`position:absolute;left:${h.x}%;top:${h.y}%;width:${h.w}%;height:${h.h}%;box-sizing:border-box;cursor:move;display:flex;align-items:center;justify-content:center;font-weight:bold;z-index:5;${visual}`;
+        const tag=document.createElement('span');tag.textContent=(h.label||'زر')+' • '+actionName(h.action);tag.style.cssText='position:absolute;top:-25px;right:0;background:#6d4aff;color:#fff;padding:2px 7px;border-radius:6px;font-size:12px;white-space:nowrap;pointer-events:none';el.appendChild(tag);
+        if(h.label){const txt=document.createElement('span');txt.textContent=h.label;txt.style.pointerEvents='none';el.appendChild(txt)}
+        let sx=null,sy=null,ox=0,oy=0;el.onpointerdown=e=>{if(e.target.classList.contains('resize-handle'))return;sx=e.clientX;sy=e.clientY;ox=h.x;oy=h.y;el.setPointerCapture(e.pointerId)};el.onpointermove=e=>{if(sx===null)return;const r=stage.getBoundingClientRect();h.x=Math.max(0,Math.min(100-h.w,ox+(e.clientX-sx)/r.width*100));h.y=Math.max(0,Math.min(100-h.h,oy+(e.clientY-sy)/r.height*100));el.style.left=h.x+'%';el.style.top=h.y+'%'};el.onpointerup=()=>sx=sy=null;el.ondblclick=e=>{if(!e.target.classList.contains('resize-handle'))window.editHotspot(h,page,draw)};
+        const rh=document.createElement('div');rh.className='resize-handle';rh.title='اسحبي للتكبير أو التصغير';rh.style.cssText='position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid #6d4aff;left:-11px;bottom:-11px;cursor:nwse-resize;z-index:10;box-sizing:border-box';let rsx,rsy,rw,rhh;rh.onpointerdown=e=>{e.stopPropagation();rsx=e.clientX;rsy=e.clientY;rw=h.w;rhh=h.h;rh.setPointerCapture(e.pointerId)};rh.onpointermove=e=>{if(rsx==null)return;const r=stage.getBoundingClientRect();h.w=Math.max(2,Math.min(100-h.x,rw-(e.clientX-rsx)/r.width*100));h.h=Math.max(2,Math.min(100-h.y,rhh+(e.clientY-rsy)/r.height*100));el.style.width=h.w+'%';el.style.height=h.h+'%'};rh.onpointerup=()=>rsx=rsy=null;el.appendChild(rh);stage.appendChild(el)})}
+    function add(kind){const label=prompt('نص الزر — يمكن تركه فارغًا','');page.hotspots.push({id:crypto.randomUUID(),variant,x:40,y:75,w:20,h:10,label:label??'',action:'next',target:'',kind,background:'#22c55e',textColor:'#fff',radius:18,imageUrl:''});draw()}
+    transparent.onclick=()=>add('transparent');styled.onclick=()=>add('styled');imageBtn.onclick=()=>add('image');full.onclick=()=>{page.hotspots.push({id:crypto.randomUUID(),variant,x:0,y:0,w:100,h:100,label:'',action:'next',target:'',kind:'transparent'});draw()};toggle.onclick=()=>{variant=variant==='portrait'?'landscape':'portrait';draw()};vis.onclick=()=>{show=!show;draw()};save.onclick=async()=>{try{save.disabled=true;await saveHotspots(page);alert('تم حفظ الأزرار والتعديلات ✅')}catch(e){alert(e.message)}finally{save.disabled=false}};close.onclick=()=>o.remove();o.append(top,help,stage);document.body.appendChild(o);draw();
+  };
+})();

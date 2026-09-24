@@ -34,4 +34,29 @@
     function add(kind){const label=prompt('نص الزر — يمكن تركه فارغًا','');page.hotspots.push({id:crypto.randomUUID(),variant,x:40,y:75,w:20,h:10,label:label??'',action:'next',target:'',kind,background:'#22c55e',textColor:'#fff',radius:18,imageUrl:''});draw()}
     transparent.onclick=()=>add('transparent');styled.onclick=()=>add('styled');imageBtn.onclick=()=>add('image');full.onclick=()=>{page.hotspots.push({id:crypto.randomUUID(),variant,x:0,y:0,w:100,h:100,label:'',action:'next',target:'',kind:'transparent'});draw()};toggle.onclick=()=>{variant=variant==='portrait'?'landscape':'portrait';draw()};vis.onclick=()=>{show=!show;draw()};save.onclick=async()=>{try{save.disabled=true;await saveHotspots(page);alert('تم حفظ الأزرار والتعديلات ✅')}catch(e){alert(e.message)}finally{save.disabled=false}};close.onclick=()=>o.remove();o.append(top,help,stage);document.body.appendChild(o);draw();
   };
+
+  // Keep page creation available even while editing an individual page.
+  const originalOpenPageEditor=window.openPageEditor;
+  if(typeof originalOpenPageEditor==='function'){
+    window.openPageEditor=function(d,page){
+      originalOpenPageEditor(d,page);
+      const add=document.createElement('button');
+      add.textContent='+ إضافة صفحة جديدة';
+      add.style.cssText='background:#6d4aff;color:#fff;margin:10px;padding:14px 18px;border-radius:10px';
+      add.onclick=async()=>{
+        try{
+          const types=[['intro','افتتاحية'],['video','فيديو'],['map','خريطة'],['lesson','درس'],['quiz','اختبار'],['result','نتيجة'],['content','محتوى']];
+          const n=Number(prompt(types.map((t,i)=>(i+1)+' - '+t[1]).join('\n'),'7'))-1;
+          if(!types[n])return;
+          const title=prompt('اسم الصفحة',types[n][1])||types[n][1];
+          const r=await api({action:'add_page',slug:d.project.slug,page_type:types[n][0],title});
+          d.pages.push(r.page);
+          alert('تمت إضافة الصفحة ✅');
+          openEditor(d.project.slug);
+        }catch(e){alert(e.message||'تعذر إضافة الصفحة')}
+      };
+      const heading=panel.querySelector('h1');
+      if(heading)heading.insertAdjacentElement('afterend',add);else panel.prepend(add);
+    };
+  }
 })();

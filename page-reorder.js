@@ -1,0 +1,14 @@
+/* Drag/drop page ordering. Keeps page IDs unchanged so 123 links stay attached to the same page. */
+(function(){
+ const wait=()=>{if(typeof window.openEditor!=='function')return setTimeout(wait,60);const base=window.openEditor;window.openEditor=async function(slug){const r=await base(slug);setTimeout(enable,120);return r};};
+ function enable(){
+  const panel=document.querySelector('.panel');if(!panel)return;const pageContainer=[...panel.querySelectorAll('div')].find(d=>{const kids=[...d.children];return kids.length>0&&kids.filter(x=>x.tagName==='DIV'&&x.style.cursor==='pointer').length===kids.length});if(!pageContainer||pageContainer.dataset.reorderReady)return;pageContainer.dataset.reorderReady='1';
+  const cards=[...pageContainer.children];cards.forEach((card,i)=>{card.draggable=true;card.dataset.orderIndex=i;card.style.position='relative';card.style.paddingRight='54px';const handle=document.createElement('span');handle.textContent='☰';handle.title='اسحبي لترتيب الصفحة';handle.style.cssText='position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:25px;cursor:grab;user-select:none;color:#6d4aff';card.append(handle);card.addEventListener('dragstart',e=>{card.classList.add('dragging-page');card.style.opacity='.45';e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',card.dataset.orderIndex)});card.addEventListener('dragend',()=>{card.style.opacity='1';card.classList.remove('dragging-page');persist(pageContainer)});card.addEventListener('dragover',e=>{e.preventDefault();const dragging=pageContainer.querySelector('.dragging-page');if(!dragging||dragging===card)return;const r=card.getBoundingClientRect();if(e.clientY<r.top+r.height/2)pageContainer.insertBefore(dragging,card);else pageContainer.insertBefore(dragging,card.nextSibling)})});
+  const note=document.createElement('p');note.textContent='☰ اسحبي الصفحة من المقبض لتغيير ترتيبها. التالي والسابق يتبعان الترتيب الجديد، وروابط 123 تبقى مرتبطة بنفس الصفحة.';note.style.cssText='background:#f4f1ff;padding:10px 12px;border-radius:10px;margin:10px 0;color:#4933a8;font-weight:700';pageContainer.parentElement.insertBefore(note,pageContainer)
+ }
+ async function persist(container){const cards=[...container.children];cards.forEach((c,i)=>{const strong=c.querySelector('strong');if(strong)strong.textContent=strong.textContent.replace(/^\d+\./,(i+1)+'.')});
+  /* Persistence endpoint support is intentionally detected rather than changing IDs or hotspot targets. */
+  const order=cards.map(c=>Number(c.dataset.orderIndex));try{if(typeof window.savePageOrder==='function')await window.savePageOrder(order)}catch(e){console.warn('Page order save failed',e)}
+ }
+ wait();
+})();

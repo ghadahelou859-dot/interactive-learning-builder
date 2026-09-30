@@ -10,10 +10,18 @@
 .frame.landscape .scene{object-fit:contain}
 .frame.landscape .mobile-menu{display:none}
 @media(max-width:760px){.frame.landscape{width:min(100vw,177.68dvh);height:auto;max-height:100dvh}}
+/* Student navigation happens on the laboratory map and artwork buttons. */
+#root{isolation:isolate;background:transparent}
+#root:before{content:"";position:fixed;inset:-16px;background-image:var(--scene-background);background-position:center;background-size:cover;filter:blur(10px);z-index:-1;pointer-events:none}
+.rail{display:none!important}
+.frame{height:auto;width:min(100vw,56.28dvh);max-height:100dvh;flex-shrink:0;background:transparent}
+.frame.landscape{width:min(100vw,177.68dvh);height:auto;max-height:100dvh}
+.frame.landscape.map-stage .sprite{width:15%;height:30%}
+@media(max-width:760px){.frame{width:min(100vw,56.28dvh)}.frame.landscape{width:min(100vw,177.68dvh)}}
 </style></head><body><noscript><p class="noscript">يلزم تشغيل JavaScript لفتح الدرس التفاعلي.</p></noscript><main id="root"><p class="screen-message">جاري تجهيز المختبر…</p></main>
 <script>
 const API='https://jzswtwicvgppisasrkqe.supabase.co/functions/v1/zain-learning';
-const CONTACT_WHATSAPP=''; // Add the confirmed business number with country code, digits only.
+const CONTACT_WHATSAPP='970598494977'; // Existing WhatsApp contact saved on this project's result page.
 const SOCIAL_PROFILES=[
  {name:'إنستغرام',className:'instagram',url:'https://www.instagram.com/ghada.invitations/',icon:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/>'},
  {name:'تيك توك',className:'tiktok',url:'https://www.tiktok.com/@ghada.invitations',icon:'<path d="M14 3v11.2a4.3 4.3 0 1 1-4-4.2"/><path d="M14 3c.7 3.2 2.6 4.6 6 4.8"/>'},
@@ -21,7 +29,10 @@ const SOCIAL_PROFILES=[
 ];
 const root=document.getElementById('root'),starts=[3,5,8,11,14,16],ends=[4,7,10,13,15,18],lessonNames=['المادّة والذرّة','العنصر والمركّب','الجزيء','رموز العناصر','عناصر القشرة الأرضية','غازات الهواء'];
 let pages=[],current=0,position=-1,moving=false,timer=null,attempt=null,questionData=null,feedback=null,result=null,busy=false;
-const nodes=[{x:33,y:92},{x:59,y:86},{x:71,y:65},{x:31,y:56},{x:78,y:51},{x:32,y:37},{x:76,y:38},{x:49,y:24}];
+const portraitNodes=[{x:33,y:92},{x:59,y:86},{x:71,y:65},{x:31,y:56},{x:78,y:51},{x:32,y:37},{x:76,y:38},{x:49,y:24}];
+const landscapeNodes=[{x:94,y:92},{x:91,y:90},{x:68,y:90},{x:44,y:90},{x:20,y:90},{x:32,y:56},{x:57,y:56},{x:84,y:56}];
+let nodes=portraitNodes;
+
 const transcript=[
 'المادّة لها كتلة وتشغل حيّزًا. نقصّ ورق الألومنيوم إلى قطع أصغر وأصغر، وتبقى القطع من الألومنيوم نفسه.',
 'تتكوّن المادّة من وحدات صغيرة جدًا تُسمّى ذرّات. الذرّة وحدة بناء العنصر وتحمل صفاته. لا نرى الذرّات بالعين المجرّدة.',
@@ -49,22 +60,22 @@ function rail(){const r=el('aside','rail');r.append(el('h2','','زين وعال�
 function hotspot(frame,rect,label,fn){const b=button('',fn,'hot');Object.assign(b.style,{left:rect[0]+'%',top:rect[1]+'%',width:rect[2]+'%',height:rect[3]+'%'});b.setAttribute('aria-label',label);b.title=label;frame.append(b)}
 function sceneVariant(p){return matchMedia('(orientation: landscape)').matches&&p.settings.image_landscape?.url?'landscape':'portrait'}
 let renderedVariant='portrait';
-window.addEventListener('resize',()=>{if(current>=3&&current<=18&&!moving&&sceneVariant(pages[current])!==renderedVariant)go(current)});
+window.addEventListener('resize',()=>{if(current>=0&&current<=18&&current!==1&&!moving&&sceneVariant(pages[current])!==renderedVariant)go(current)});
 function renderScene(){
- const p=pages[current],variant=sceneVariant(p),frame=el('section','frame'+(variant==='landscape'?' landscape':''));renderedVariant=variant;frame.setAttribute('aria-label',p.title);
- if(current===1){renderVideo(frame,p);root.append(frame,rail());return}
- const img=el('img','scene');img.alt=p.title;img.src=current===2?(p.settings.animated_map?.background||p.settings.image_portrait?.url):p.settings['image_'+variant]?.url;frame.append(img);
+ const p=pages[current],variant=sceneVariant(p),frame=el('section','frame'+(variant==='landscape'?' landscape':'')+(current===2?' map-stage':''));nodes=variant==='landscape'?landscapeNodes:portraitNodes;renderedVariant=variant;frame.setAttribute('aria-label',p.title);
+ if(current===1){renderVideo(frame,p);root.append(frame);return}
+ const img=el('img','scene');img.alt=p.title;img.src=current===2&&variant==='portrait'?(p.settings.animated_map?.background||p.settings.image_portrait?.url):p.settings['image_'+variant]?.url;root.style.setProperty('--scene-background','url('+JSON.stringify(img.src)+')');frame.append(img);
  if(current===0){hotspot(frame,[16,81.5,68,10],'هيا نكتشف',()=>go(1))}
  else if(current===2){
   const a=p.settings.animated_map;if(a?.sprite){const s=el('div','sprite');s.id='zainSprite';s.style.left=nodes[position+1].x+'%';s.style.top=nodes[position+1].y+'%';const im=el('div','sprite-art');im.style.backgroundImage='url("'+a.sprite+'")';im.setAttribute('role','img');im.setAttribute('aria-label','زين');s.append(im);frame.append(s)}
-  const rects=[[45,75,42,17],[52,53,42,17],[15,42,34,14],[62,39,34,14],[15,26,33,13],[58,27,34,13]];
-  rects.forEach((r,i)=>hotspot(frame,r,lessonNames[i],()=>moveTo(i,starts[i])));hotspot(frame,[38,14,24,10],'التحدّي النهائي',()=>moveTo(6,19));
+  const rects=variant==='landscape'?[[76,64,20,30],[52,64,21,30],[28,64,21,30],[4,64,22,30],[16,25,19,28],[40,25,20,28]]:[[45,75,42,17],[52,53,42,17],[15,42,34,14],[62,39,34,14],[15,26,33,13],[58,27,34,13]];
+  rects.forEach((r,i)=>hotspot(frame,r,lessonNames[i],()=>moveTo(i,starts[i])));hotspot(frame,variant==='landscape'?[63,27,24,31]:[38,14,24,10],'التحدّي النهائي',()=>moveTo(6,19));
  }else{
   let hs=(p.hotspots||[]).filter(h=>(h.variant||'portrait')===variant);hs.forEach(h=>{let target=h.action==='page'?pages.findIndex(x=>x.id===h.target):h.action==='next'?current+1:h.action==='prev'?current-1:0;hotspot(frame,[h.x,h.y,h.w,h.h],target===2?'الخريطة':target>current?'التالي':'السابق',()=>go(target))});
   frame.append(button('قراءة النص',()=>readText(),'utility'));
   const menu=el('div','mobile-menu');menu.append(button('الخريطة',()=>go(2),''));frame.append(menu)
  }
- root.append(frame,rail())
+ root.append(frame)
 }
 async function moveTo(target,page){
  if(moving)return;moving=true;const s=document.getElementById('zainSprite'),reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -110,4 +121,5 @@ async function teacher(){
 function renderTeacher(rows){clear();const section=el('section','teacher');section.append(el('h1','','نتائج زين وعالم الذرّة'),el('p','','البريد الإلكتروني مُدخل من الطالب، ولم يتم التحقّق منه برمز.'));section.append(button('تنزيل النتائج Excel / CSV',()=>{const quote=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^[=+\-@]/,"'"+String(v)[0])+'"';const data=[['الاسم','الإيميل','النتيجة','العلامة الكاملة','الحالة','الوقت بالثواني','تاريخ البدء'],...rows.map(r=>[r.name,r.email,r.score,r.total,r.completed_at?'مكتمل':'بدأ ولم يكمل',r.duration,r.started_at])].map(r=>r.map(quote).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+data],{type:'text/csv;charset=utf-8'}));a.download='zain-results.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},'primary'));const wrap=el('div','table-wrap'),t=el('table'),thead=el('thead'),tr=el('tr');['الطالب','الإيميل','النتيجة','الحالة','الوقت','التاريخ'].forEach(x=>tr.append(el('th','',x)));thead.append(tr);t.append(thead);const body=el('tbody');rows.forEach(r=>{const row=el('tr');[r.name,r.email,r.score+' / '+r.total,r.completed_at?'مكتمل':'بدأ ولم يكمل',r.duration===null?'—':r.duration+' ث',new Date(r.started_at).toLocaleString('ar-PS')].forEach(x=>row.append(el('td','',x)));body.append(row)});t.append(body);wrap.append(t);section.append(el('p','','المحاولات: '+rows.length),wrap,button('فتح الدرس',()=>{location.hash='';go(0)},'secondary'));root.append(section)}
 (async()=>{try{const d=await api({action:'config'});pages=d.pages;if(!pages.length)throw Error('الدرس غير متاح');if(location.hash==='#teacher')teacher();else go(0)}catch(e){root.replaceChildren(el('p','screen-message',e.message),button('إعادة المحاولة',()=>location.reload()))}})();
 </script></body></html>
+
 

@@ -1,0 +1,12 @@
+create table if not exists public.zain_teacher_access (project_id uuid primary key references educational_projects(id), salt text not null, code_hash text not null);
+create table if not exists public.zain_access_attempts (id bigint generated always as identity primary key, ip_hash text not null, attempted_at timestamptz not null default now());
+create index if not exists zain_access_attempts_ip_time on public.zain_access_attempts(ip_hash,attempted_at);
+create table if not exists public.zain_engagement (visitor_key text not null, event_key text not null, event_type text not null check(event_type in ('view','like')), created_at timestamptz not null default now(), primary key(visitor_key,event_key));
+create table if not exists public.zain_student_visits (visitor_key text primary key, name text not null, email text not null, entered_at timestamptz not null default now(), last_seen_at timestamptz not null default now());
+alter table public.zain_teacher_access enable row level security;
+alter table public.zain_access_attempts enable row level security;
+alter table public.zain_engagement enable row level security;
+alter table public.zain_student_visits enable row level security;
+revoke all on public.zain_teacher_access,public.zain_access_attempts,public.zain_engagement,public.zain_student_visits from public,anon,authenticated;
+grant all on public.zain_teacher_access,public.zain_access_attempts,public.zain_engagement,public.zain_student_visits to service_role;
+grant usage,select on sequence public.zain_access_attempts_id_seq to service_role;

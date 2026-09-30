@@ -18,10 +18,51 @@ Deno.serve(async(req)=>{
    const pages=await check(sb.from("educational_pages").select("id,title,page_type,sort_order,settings,hotspots,video_settings").eq("project_id",PROJECT).order("sort_order"));
    return json({pages:pages.map((p:any)=>({...p,settings:{image_portrait:p.settings.image_portrait,image_landscape:p.settings.image_landscape,animated_map:p.settings.animated_map,lesson_number:p.settings.lesson_number},hotspots:p.hotspots.filter((h:any)=>["next","prev","page","home"].includes(h.action))}))});
   }
-  if(b.action==="teacher"){
-   if(await hash(String(b.password||""))!==ADMIN_HASH)return json({error:"كلمة المرور غير صحيحة"},401);
-   const rows=await check(sb.from("educational_quiz_attempts").select("id,guest_name,score,max_score,started_at,completed_at,duration_seconds,metadata").eq("quiz_id",quiz).order("started_at",{ascending:false}).limit(500));
-   return json({rows:rows.map((r:any)=>({id:r.id,name:r.guest_name,email:r.metadata.email,email_verified:false,score:r.score,total:r.max_score,started_at:r.started_at,completed_at:r.completed_at,duration:r.duration_seconds}))});
+  const ANALYTICS="0b9b61c4-15dd-4013-bd5b-775249104488";
+  const visitor=String(b.visitor_key||"");
+  const validVisitor=/^[a-zA-Z0-9_-]{16,100}$/.test(visitor);
+  if(["engagement","like","view"].includes(b.action)){
+   if(!validVisitor)return json({error:"معرّف الزيارة غير صحيح"},400);
+   if(b.action!=="engagement"){
+    const type=b.action,session=String(b.session_key||"");
+    if(type==="view"&&!/^[a-zA-Z0-9_-]{16,100}$/.test(session))return json({error:"معرّف الجلسة غير صحيح"},400);
+    const key=type==="like"?"like":"view:"+session;
+    const {error}=await sb.from("zain_engagement").insert({visitor_key:visitor,event_key:key,event_type:type});
+    if(error&&error.code!=="23505")throw error;
+    if(!error)await check(sb.from("analytics_events").insert({project_id:ANALYTICS,visitor_key:visitor,session_key:session||null,event_name:type,page_key:"zain",metadata:{source:"zain-learning"}}));
+   }
+   const {count,error}=await sb.from("zain_engagement").select("visitor_key",{head:true,count:"exact"}).eq("event_type","like");if(error)throw error;
+   const liked=await check(sb.from("zain_engagement").select("visitor_key").eq("visitor_key",visitor).eq("event_key","like").maybeSingle());
+   return json({likes:count||0,liked:!!liked});
+  }
+  if(b.action==="social"){
+   if(!validVisitor||!["whatsapp","instagram","tiktok","snapchat"].includes(b.network))return json({error:"طلب غير صحيح"},400);
+   await check(sb.from("analytics_events").insert({project_id:ANALYTICS,visitor_key:visitor,session_key:String(b.session_key||"").slice(0,100),event_name:"social_click",page_key:"zain",metadata:{network:b.network}}));return json({ok:true});
+  }
+  if(["teacher","admin"].includes(b.action)){
+   const admin=b.action==="admin";
+   if(admin){if(await hash(String(b.password||""))!==ADMIN_HASH)return json({error:"كلمة المرور غير صحيحة"},401);}
+   else{
+    const ip=await hash(req.headers.get("x-forwarded-for")||"unknown");
+    const {count,error}=await sb.from("zain_access_attempts").select("id",{count:"exact",head:true}).eq("ip_hash",ip).gte("attempted_at",new Date(Date.now()-900000).toISOString());if(error)throw error;
+    if((count||0)>=8)return json({error:"محاولات دخول كثيرة. انتظري ١٥ دقيقة."},429);
+    const access=await check(sb.from("zain_teacher_access").select("salt,code_hash").eq("project_id",PROJECT).single());
+    if(!/^[0-9]{8}$/.test(String(b.code||""))||await hash(access.salt+String(b.code))!==access.code_hash){await check(sb.from("zain_access_attempts").insert({ip_hash:ip}));return json({error:"رمز المعلمة غير صحيح"},401);}
+   }
+   const all:any[]=[];
+   for(let from=0;;from+=1000){const batch=await check(sb.from("educational_quiz_attempts").select("id,guest_name,score,max_score,started_at,completed_at,duration_seconds,metadata").eq("quiz_id",quiz).order("started_at",{ascending:true}).order("id").range(from,from+999));all.push(...batch);if(batch.length<1000)break;}
+   const counters=new Map<string,number>();
+   const rows=all.map((r:any)=>{const email=String(r.metadata.email||"").toLowerCase();const number=(counters.get(email)||0)+1;counters.set(email,number);return {id:r.id,name:r.guest_name,email,email_verified:false,score:r.score,total:r.max_score,attempt_number:number,started_at:r.started_at,completed_at:r.completed_at,duration:r.duration_seconds};}).reverse();
+   const students=counters.size,completed=rows.filter((r:any)=>r.completed_at).length;
+   const visits=admin?await check(sb.from("zain_student_visits").select("name,email,entered_at,last_seen_at").order("last_seen_at",{ascending:false})):undefined;
+   return json({rows,students,completed,attempts:rows.length,visits});
+  }
+  if(b.action==="register"){
+   const name=String(b.name||"").trim(),email=String(b.email||"").trim().toLowerCase();
+   if(!validVisitor||name.length<2||name.length>80||email.length>150||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"أدخلي الاسم والبريد الإلكتروني بشكل صحيح"},400);
+   const existing=await check(sb.from("zain_student_visits").select("entered_at").eq("visitor_key",visitor).maybeSingle());
+   await check(sb.from("zain_student_visits").upsert({visitor_key:visitor,name,email,entered_at:existing?.entered_at||new Date().toISOString(),last_seen_at:new Date().toISOString()}));
+   return json({ok:true});
   }
   if(!quiz)return json({error:"الأسئلة غير جاهزة"},503);
   async function questions(){return await check(sb.from("educational_questions").select("id,question_text,explanation,sort_order,educational_question_options(id,option_text,is_correct,sort_order)").eq("quiz_id",quiz).order("sort_order"));}
